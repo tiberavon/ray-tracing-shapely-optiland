@@ -1,0 +1,12 @@
+ray-tracing-shapely-optiland
+Copyright 2026 ray-tracing-shapely authors and contributors
+
+This product includes software developed by the ray-tracing-shapely
+authors and contributors, licensed under the Apache License 2.0.
+
+This distribution contains no code derived from the Ray Optics
+Simulation project; all 12 of its source files were written for
+this project.
+
+The core distribution it depends on, ray-tracing-shapely, does contain
+such code; see its own NOTICE.

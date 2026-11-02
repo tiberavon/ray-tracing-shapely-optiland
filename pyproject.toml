@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ray-tracing-shapely-optiland"
+version = "0.0.0"
+description = "3D verification of ray_tracing_shapely nonimaging-optics designs via Optiland's non-sequential ray tracer -- scene assembly, notebook-embedded visualization, and ray/run persistence"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "ray-tracing-shapely authors and contributors", email = "micheleben@gmail.com"}
+]
+keywords = ["ray-tracing", "optics", "optiland", "non-sequential", "simulation"]
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+dependencies = [
+    "ray-tracing-shapely>=0.2.0",
+    "optiland",
+]
+
+[project.optional-dependencies]
+notebook = [
+    # Inline Jupyter 3D interaction; see
+    # dev_doc/architecture/components/optiland_nsq_viewer.md.
+    # Not a dependency of scene assembly itself -- see that document's directional-
+    # dependency contract (optiland_scene_bridge must not import optiland_nsq_viewer).
+    "trame",
+    "trame-vtk",
+    "trame-vuetify",
+]
+dev = [
+    "pytest>=7.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/tiberavon/ray-tracing-shapely-optiland"
+Repository = "https://github.com/tiberavon/ray-tracing-shapely-optiland"
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ray_tracing_shapely_optiland", "ray_tracing_shapely_optiland.*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
