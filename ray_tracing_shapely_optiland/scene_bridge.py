@@ -144,7 +144,11 @@ def face_from_span(
 
     p1 = points[span["index_start"]]
     p2 = points[span["index_start"] + 1]
-    normal = normals[span["index_start"]]
+    normal = normals[span["index_start"]]  # noqa: F841 -- POSSIBLE DEFECT, left for review: the component
+    # orientation below is derived from the two points (phi_edge), not from
+    # this normal, and material_front/material_back depend on which side is
+    # outside. Either the winding is guaranteed consistent and the normal is
+    # redundant, or a span could be built with its faces swapped.
 
     x1, _, z1 = _point_to_world(p1, symmetry)
     x2, _, z2 = _point_to_world(p2, symmetry)

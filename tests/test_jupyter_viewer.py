@@ -39,8 +39,17 @@ from optiland.nonsequential.visualization.viewer_3d import NSQViewer3D
 from ray_tracing_shapely_optiland.scene_bridge import ExtrudedPolygonSolid, span_outward_ray
 from ray_tracing_shapely_optiland.visualization.renderers import ExtrudedPolygonRenderer3D
 
-pytest.importorskip("trame")
+# Guard on the modules the code actually imports, not on the top-level
+# package. `trame.ui.vuetify3` and `trame.widgets.vtk` ship as the separate
+# `trame-vuetify` and `trame-vtk` distributions, so `trame` alone can be
+# importable while `view_in_notebook` still raises. In that half-installed
+# state -- which a CI runner can reach -- this file used to report a failure
+# where it was written to skip. The `[notebook]` extra names all three.
 pytest.importorskip("vtk")
+pytest.importorskip("trame.app")
+pytest.importorskip("trame.ui.vuetify3")
+pytest.importorskip("trame.widgets.vtk")
+pytest.importorskip("trame.widgets.vuetify3")
 
 from ray_tracing_shapely_optiland.visualization.jupyter_viewer import (  # noqa: E402
     build_vtk_renderer,
@@ -49,7 +58,7 @@ from ray_tracing_shapely_optiland.visualization.jupyter_viewer import (  # noqa:
 
 ray_tracing_shapely = pytest.importorskip("ray_tracing_shapely")
 from optiland.materials.ideal import IdealMaterial  # noqa: E402
-from optiland.nonsequential import NSQMaterial, VACUUM  # noqa: E402
+from optiland.nonsequential import NSQMaterial  # noqa: E402
 from ray_tracing_shapely.core.scene import Scene  # noqa: E402
 from ray_tracing_shapely.optical_elements.prisms.refractometer import RefractometerPrism  # noqa: E402
 from ray_tracing_shapely.optical_elements.prisms.profile_export import export_profile  # noqa: E402

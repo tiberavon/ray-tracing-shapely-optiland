@@ -18,7 +18,6 @@ Tests for ray_tracing_shapely_optiland.nsq_db (P-NSQ-RUN-BUNDLE)."""
 
 import pytest
 
-from optiland.coordinate_system import CoordinateSystem
 from optiland.materials.ideal import IdealMaterial
 from optiland.nonsequential import (
     NSQScene,

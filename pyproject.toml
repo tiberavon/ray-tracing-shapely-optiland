@@ -7,7 +7,7 @@ name = "ray-tracing-shapely-optiland"
 version = "0.0.0"
 description = "3D verification of ray_tracing_shapely nonimaging-optics designs via Optiland's non-sequential ray tracer -- scene assembly, notebook-embedded visualization, and ray/run persistence"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = {text = "Apache-2.0"}
 authors = [
     {name = "ray-tracing-shapely authors and contributors", email = "micheleben@gmail.com"}
@@ -19,6 +19,9 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Physics",
 ]
 
@@ -51,6 +54,17 @@ package-dir = {"" = "."}
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["ray_tracing_shapely_optiland", "ray_tracing_shapely_optiland.*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# The same blocking set as the core distribution: pyflakes finds real
+# defects rather than style. Without this section ruff falls back to its own
+# defaults -- 88 columns and a wider ruleset -- and this distribution would
+# report 83 findings instead of none, which is a lint job red on arrival.
+select = ["F"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -18,7 +18,6 @@ Tests for ExtrudedPolygonSolid + its generic 2D/3D renderers."""
 
 import pytest
 
-from optiland.coordinate_system import CoordinateSystem
 from optiland.materials.ideal import IdealMaterial
 from optiland.nonsequential import (
     NSQScene,

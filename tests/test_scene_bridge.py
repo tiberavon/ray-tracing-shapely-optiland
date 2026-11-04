@@ -22,11 +22,9 @@ scene_bridge.py itself never imports it, matching C-PROFILE-01's
 tool-independence.
 """
 
-import math
 
 import pytest
 
-from optiland.coordinate_system import CoordinateSystem
 from optiland.materials.ideal import IdealMaterial
 from optiland.nonsequential import (
     NSQScene,

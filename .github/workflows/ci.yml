@@ -1,0 +1,78 @@
+# CI for the ray-tracing-shapely-optiland repository.
+#
+# Authored in the private monorepo at
+# src-python/ray_tracing_shapely_optiland/.github/workflows/ci.yml, and
+# published to this repository's root, because a satellite's published tree
+# is rooted at its own package directory.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.11 is the floor and not a choice: optiland itself requires >=3.11,
+        # so this distribution cannot support less whatever it declares.
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      # Until ray-tracing-shapely is on PyPI this cannot resolve from the
+      # index, so core is installed from its own repository. Remove this step
+      # after the first release; the dependency in pyproject.toml will then
+      # resolve on its own.
+      - name: Install core from source (pre-release only)
+        run: |
+          python -m pip install --upgrade pip
+          pip install "ray-tracing-shapely @ git+https://github.com/tiberavon/ray-tracing-shapely@master#subdirectory=src-python/ray_tracing_shapely"
+
+      - name: Install
+        # The [notebook] extra is not optional here. Without trame, trame-vtk
+        # and trame-vuetify the two VTK test files skip, and a green run would
+        # be hiding 11 of the 24 tests.
+        run: pip install -e ".[dev,notebook]"
+
+      - name: Test
+        # No display, no GPU, and none needed: build_vtk_renderer calls
+        # OffScreenRenderingOn(), and VTK falls back to software rendering.
+        # It is noisy about that -- "bad X server connection", libEGL warnings
+        # about /dev/dri -- and then renders correctly. Measured: 24 passed.
+        run: pytest -q
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "ruff>=0.6"
+      - run: ruff check ray_tracing_shapely_optiland tests
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build twine
+      - run: python -m build --outdir dist .
+      # --strict, because plain `twine check` only warns on a missing
+      # long_description and exits 0.
+      - run: twine check --strict dist/*
