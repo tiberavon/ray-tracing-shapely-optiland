@@ -36,10 +36,16 @@ jobs:
       # index, so core is installed from its own repository. Remove this step
       # after the first release; the dependency in pyproject.toml will then
       # resolve on its own.
+      #
+      # The [radiometry] extra has to be repeated here: a git requirement
+      # pins the distribution, and pip will not add extras to an
+      # already-satisfied pin just because a dependent asks for them. Without
+      # it the install succeeds and the first import raises
+      # ModuleNotFoundError: No module named 'pint'.
       - name: Install core from source (pre-release only)
         run: |
           python -m pip install --upgrade pip
-          pip install "ray-tracing-shapely @ git+https://github.com/tiberavon/ray-tracing-shapely@master#subdirectory=src-python/ray_tracing_shapely"
+          pip install "ray-tracing-shapely[radiometry] @ git+https://github.com/tiberavon/ray-tracing-shapely@master#subdirectory=src-python/ray_tracing_shapely"
 
       - name: Install
         # The [notebook] extra is not optional here. Without trame, trame-vtk

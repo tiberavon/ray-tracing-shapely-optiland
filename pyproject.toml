@@ -1,5 +1,6 @@
 [build-system]
-requires = ["setuptools>=45", "wheel"]
+# >=77 for PEP 639: `license` as an SPDX string rather than a table.
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,15 +9,15 @@ version = "0.0.0"
 description = "3D verification of ray_tracing_shapely nonimaging-optics designs via Optiland's non-sequential ray tracer -- scene assembly, notebook-embedded visualization, and ray/run persistence"
 readme = "README.md"
 requires-python = ">=3.11"
-license = {text = "Apache-2.0"}
+license = "Apache-2.0"
 authors = [
-    {name = "ray-tracing-shapely authors and contributors", email = "micheleben@gmail.com"}
+    {name = "Michele Benetti", email = "micheleben@gmail.com"},
+    {name = "ray-tracing-shapely authors and contributors"},
 ]
 keywords = ["ray-tracing", "optics", "optiland", "non-sequential", "simulation"]
 classifiers = [
     "Development Status :: 1 - Planning",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
@@ -26,7 +27,16 @@ classifiers = [
 ]
 
 dependencies = [
-    "ray-tracing-shapely>=0.2.0",
+    # [radiometry] is not optional for this distribution. The scene bridge
+    # imports `optical_elements`, whose __init__ eagerly imports `units`,
+    # which imports pint. `optical_elements` sits outside core on purpose --
+    # it is in bare_core_check's NON_CORE_PREFIXES -- so the extra has to be
+    # declared by whoever needs it. Declared bare, `pip install
+    # ray-tracing-shapely-optiland` succeeded and then raised
+    # ModuleNotFoundError: No module named 'pint' on the first import.
+    # Measured: radiometry alone is sufficient; eye-safety and agentic are not
+    # reached by anything this distribution imports.
+    "ray-tracing-shapely[radiometry]>=0.2.0",
     "optiland",
 ]
 
