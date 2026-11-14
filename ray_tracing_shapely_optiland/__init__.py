@@ -32,8 +32,10 @@ geometry plugin itself, which lives in the separate `optiland-sms`
 distribution. [KB7: one bridge, two directions; KC7: the batch half of it
 never imports the viewer.]
 
-scene_bridge.py, visualization/renderers.py, visualization/jupyter_viewer.py,
-and nsq_db.py are implemented and tested. See
+scene_bridge.py (extruded solids), revolve.py (solids of revolution), plate.py
+(flat polygonal plates), geometry.py (cut apertures),
+visualization/renderers.py, visualization/jupyter_viewer.py, and nsq_db.py
+are implemented and tested. See
 dev_doc/architecture/components/optiland_scene_bridge.md and
 dev_doc/architecture/components/optiland_nsq_run_registry.md for how each came to be, and
 dev_doc/architecture/components/optiland_scene_bridge.md

@@ -123,9 +123,18 @@ def test_only_base_span_is_unreached():
 
 def test_unsupported_symmetry_kind_raises_not_implemented():
     profile = _profile()
-    profile["symmetry"] = {"kind": "revolve", "axis": [0, 1, 0]}
+    profile["symmetry"] = {"kind": "free"}
     glass = NSQMaterial(IdealMaterial(n=N_PRISM))
     with pytest.raises(NotImplementedError, match="extrude"):
+        build_faces_from_profile(profile, interior_material=glass)
+
+
+def test_a_revolve_with_a_malformed_axis_raises():
+    """Revolve is built; an axis that is not {point, direction} is refused."""
+    profile = _profile()
+    profile["symmetry"] = {"kind": "revolve", "axis": [0, 1, 0]}
+    glass = NSQMaterial(IdealMaterial(n=N_PRISM))
+    with pytest.raises(ValueError, match="axis"):
         build_faces_from_profile(profile, interior_material=glass)
 
 

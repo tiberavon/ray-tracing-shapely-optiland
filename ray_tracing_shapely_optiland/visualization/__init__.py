@@ -16,8 +16,8 @@ limitations under the License.
 
 Visualization for ray_tracing_shapely_optiland-built NSQ scenes.
 
-See ``renderers`` (generic 2D/3D renderers for ``ExtrudedPolygonSolid``,
-registerable against Optiland's own ``NSQViewer2D``/``NSQViewer3D``) and,
-once built, a ``jupyter_viewer`` module for inline notebook interaction
-(not implemented yet).
+See ``renderers`` (2D/3D renderers for ``ExtrudedPolygonSolid``,
+``RevolvedProfileSolid`` and ``RevolvedProfileSheet``, registerable against Optiland's own
+``NSQViewer2D``/``NSQViewer3D``) and ``jupyter_viewer`` (the 3D view inline
+in a notebook cell).
 """
