@@ -23,6 +23,10 @@ and comes back.
   - **`compare_2d_3d`** traces the same meridional rays in both engines and compares them
     face by face.
   - **`compare_slice_3d`** compares a rayfile's 2D slice with its own records traced in 3D.
+  - **Both as flows** (`Compare2D3DFlow`, `SliceCompareFlow`), from profile files alone
+    (lenses and other solids, revolved mirror sheets, a profile's rayfile source): an
+    agent starts them by name, and their 2D and 3D traces run as jobs an executor follows,
+    here or on Modal.
 - **A third engine.** A collimator's designed faces in Optiland's sequential mode, for an
   independent check.
 - **What the light did.**
@@ -31,7 +35,8 @@ and comes back.
   - **Static 3D pictures,** rendered off-screen so that they survive a saved notebook,
     and an inline-Jupyter viewer.
 - **Agent tools.** Read-only tools over a traced 3D scene and the 2D-against-3D comparison,
-  registered into `ray_tracing_shapely`'s tool lists.
+  registered into `ray_tracing_shapely`'s tool lists, and the two comparison flows,
+  registered among the flows that can be started by name.
 
 The components' own pages say what each part guarantees:
 

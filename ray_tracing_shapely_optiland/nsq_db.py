@@ -253,8 +253,19 @@ def persist_nsq_run(
 
     Returns:
         The run directory (``out_dir/design_id/run_id``).
+
+    Raises:
+        FileExistsError: If the folder already holds a 2D run
+            (``rays.sqlite``): its params.json, with the name-topology
+            fingerprint, would be overwritten. Save the trace under its own
+            run_id.
     """
     run_dir = Path(out_dir) / design_id / run_id
+    if (run_dir / "rays.sqlite").exists():
+        raise FileExistsError(
+            f"{run_dir} already holds a 2D run (rays.sqlite); its params.json would be "
+            "overwritten: save this trace under its own run_id"
+        )
     run_dir.mkdir(parents=True, exist_ok=True)
 
     db_path = run_dir / "nsq_events.sqlite"

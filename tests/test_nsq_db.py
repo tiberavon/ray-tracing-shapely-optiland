@@ -184,3 +184,37 @@ def test_persist_nsq_run_writes_db_and_params(tmp_path):
     assert (run_dir / "nsq_events.sqlite").exists()
     params = (run_dir / "params.json").read_text()
     assert '"record_paths": true' in params
+
+
+def _a_2d_run():
+    from ray_tracing_shapely.core.scene_objs.light_source.single_ray import SingleRay
+    from ray_tracing_shapely.core.simulator import Simulator
+
+    scene = Scene()
+    ray = SingleRay(scene, {"p1": {"x": 0, "y": 0}, "p2": {"x": 1, "y": 0}})
+    ray.name = "ray"
+    scene.add_object(ray)
+    return scene, Simulator(scene, max_rays=10).run_with_result()
+
+
+def test_a_run_folder_holds_one_engines_run(tmp_path):
+    """Each writer writes params.json whole: the second engine into a folder is refused."""
+    from ray_tracing_shapely.analysis.run_registry import persist_run_artifacts
+
+    scene, result = _trace(1.20, record_paths=True, num_rays=200)
+    scene_2d, result_2d = _a_2d_run()
+    where = dict(out_dir=tmp_path, design_id="refractometer_critical_path")
+
+    nsq_dir = persist_nsq_run(scene, result, run_id="both", record_paths=True, **where)
+    before = (nsq_dir / "params.json").read_text()
+    with pytest.raises(FileExistsError, match="own run_id"):
+        persist_run_artifacts(scene_2d, result_2d, run_id="both", physical_params={}, numerical_params={}, **where)
+    assert (nsq_dir / "params.json").read_text() == before and not (nsq_dir / "rays.sqlite").exists()
+
+    run_2d = persist_run_artifacts(scene_2d, result_2d, run_id="2d", physical_params={}, numerical_params={},
+                                   **where)
+    before = (run_2d / "params.json").read_text()
+    with pytest.raises(FileExistsError, match="own run_id"):
+        persist_nsq_run(scene, result, run_id="2d", record_paths=True, **where)
+    assert (run_2d / "params.json").read_text() == before and not (run_2d / "nsq_events.sqlite").exists()
+    assert persist_nsq_run(scene, result, run_id="2d_trace", record_paths=True, **where).is_dir()   # beside it

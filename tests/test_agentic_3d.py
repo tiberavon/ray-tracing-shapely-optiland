@@ -28,6 +28,7 @@ directly from the trace's own event array.
 from __future__ import annotations
 
 import math
+import sqlite3
 import sys
 import warnings
 from collections import Counter
@@ -41,9 +42,13 @@ from optiland.nonsequential import IrradianceDetectorConfig, NSQMaterial, NSQSce
 from optiland.nonsequential.backends.numpy_backend import NumpyBackend
 
 from ray_tracing_shapely.analysis import tool_registry
-from ray_tracing_shapely.analysis.agentic_tools import clear_context
+from ray_tracing_shapely.analysis import agentic_tools
+from ray_tracing_shapely.analysis.agentic_tools import (clear_context, list_contexts, load_run_context, query_rays,
+                                                        save_context_tool, set_active_context,
+                                                        set_context_from_result)
 from ray_tracing_shapely.analysis.tool_registry import check_tool_lists, get_agentic_tools, get_exposed_tools
 from ray_tracing_shapely.core.scene import Scene
+from ray_tracing_shapely.core.simulator import Simulator
 from ray_tracing_shapely.optical_elements.lenses import SingletLens
 from ray_tracing_shapely.optical_elements.prisms.profile_export import export_profile
 from ray_tracing_shapely_optiland import agentic
@@ -154,7 +159,42 @@ def test_a_persisted_log_is_read_only(traced, tmp_path):
         clear_context()
 
 
+def test_a_run_folder_loads_its_2d_run_and_its_3d_log_into_one_context(traced, tmp_path, monkeypatch):
+    monkeypatch.setattr(agentic_tools, "_RUN_FILE_LOADERS", {})
+    scene, result = traced
+    lens_2d = Scene()
+    lens = SingletLens(lens_2d, radius_front=60.0, radius_back=-20.0, thickness=5.0, semi_diameter=10.0, n=1.5)
+    lens.name = "L1"
+    lens_2d.add_object(lens)
+    set_context_from_result(lens_2d, Simulator(lens_2d).run_with_result())
+    run_dir = save_context_tool(str(tmp_path), "lens", "r1")["data"]["run_dir"]
+    create_nsq_database(scene, result, db_path=f"{run_dir}/nsq_events.sqlite").close()
+
+    assert load_run_context(run_dir, "both")["data"]["loaded"] == ["rays.sqlite"]   # the bridge not registered
+    clear_context("both")
+    agentic_tools.register_run_file_loader("nsq_events.sqlite", agentic.load_nsq_context)
+    out = load_run_context(run_dir, "both")
+    assert out["data"]["loaded"] == ["rays.sqlite", "nsq_events.sqlite"]
+    (both,) = [c for c in list_contexts()["data"]["contexts"] if c["name"] == "both"]
+    assert both["extensions"] == ["optiland.nsq"]
+
+    set_active_context("both")
+    assert query_rays("SELECT COUNT(*) FROM rays")["status"] == "ok"
+    data = agentic.describe_nsq_scene()["data"]                      # from the log: no live 3D scene
+    assert [c["name"] for c in data["components"]] == ["L1"]
+    assert {f["name"] for f in data["components"][0]["faces"]} <= {"L1.S1", "L1.S2", "L1.RIM"}
+    assert data["sources"][0]["logged_as"] == "led" and data["event_log"]["rays"] == NUM_RAYS
+    assert "without its scene" in data["note"]
+    spectrum = agentic.nsq_path_spectrum()["data"]
+    assert spectrum["rays"] == NUM_RAYS and spectrum["paths"][0]["path"] == ["led", "L1.S1", "L1.S2", "detector"]
+    conn = agentic._context()["db"]
+    clear_context("both")
+    with pytest.raises(sqlite3.ProgrammingError):                    # closed with its context
+        conn.execute("SELECT 1")
+
+
 def test_register_adds_the_five_tools_once(monkeypatch):
+    monkeypatch.setattr(agentic_tools, "_RUN_FILE_LOADERS", {})
     monkeypatch.setattr(tool_registry, "_REGISTRY", list(tool_registry._REGISTRY))
     monkeypatch.setattr(tool_registry, "_EXTERNAL_TOOLS", [])
     monkeypatch.setattr(tool_registry, "_WITHDRAWN_TOOLS", dict(tool_registry._WITHDRAWN_TOOLS))
@@ -166,3 +206,4 @@ def test_register_adds_the_five_tools_once(monkeypatch):
     assert names == ["describe_nsq_scene", "describe_nsq_schema", "query_nsq", "nsq_path_spectrum",
                      "compare_2d_3d_summary"]
     assert len(get_exposed_tools()) == before + 5 and check_tool_lists() == []
+    assert agentic_tools._RUN_FILE_LOADERS == {"nsq_events.sqlite": agentic.load_nsq_context}

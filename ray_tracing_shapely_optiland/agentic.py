@@ -100,17 +100,20 @@ def _error(message: str) -> Dict[str, str]:
 
 
 def set_nsq_context(
-    scene: "NSQScene",
+    scene: Optional["NSQScene"],
     result: Any = None,
     *,
     profiles: Optional[Mapping[str, Mapping[str, Any]]] = None,
     db: Union[sqlite3.Connection, str, Path, None] = None,
+    context_name: Optional[str] = None,
 ) -> bool:
     """
     Register a traced 3D scene for the 3D tools.
 
     Args:
-        scene: The NSQScene that was traced.
+        scene: The NSQScene that was traced; None for a saved event log
+            loaded without its scene (``load_nsq_context``): the tools then
+            name what the log names, and roles and surface kinds are unknown.
         result: The trace's SimulationResult, traced with ``record_paths``.
             Needed unless ``db`` is given.
         profiles: The ``profile.json`` dicts the solids were built from,
@@ -120,6 +123,8 @@ def set_nsq_context(
         db: An ``nsq_events`` database instead of building one from
             ``result``: an open connection, or the path of a persisted
             ``nsq_events.sqlite`` (opened read-only).
+        context_name: The core's context to put it in, beside that
+            context's 2D run; None (the default): the active one.
 
     Returns:
         True.
@@ -136,21 +141,47 @@ def set_nsq_context(
         conn = db
     else:
         conn = sqlite3.connect(f"file:{Path(db)}?mode=ro", uri=True, check_same_thread=False)
-    if profiles is None:
+    if profiles is None and scene is None:
+        profiles = {}
+    elif profiles is None:
         profiles = {name: comp.profile for name, comp in _components(scene).items()
                     if isinstance(getattr(comp, "profile", None), Mapping)}
-    set_extension_context(CONTEXT_KEY, {"scene": scene, "result": result, "profiles": dict(profiles), "db": conn})
+    set_extension_context(CONTEXT_KEY, {"scene": scene, "result": result, "profiles": dict(profiles), "db": conn},
+                          **_in(context_name))
     return True
 
 
-def set_comparison_context(comparison: Any) -> bool:
+def load_nsq_context(path: Union[str, Path], context_name: str) -> None:
+    """Load a saved ``nsq_events.sqlite``, read-only and without its scene, into a named context.
+
+    What the core's ``load_run_context`` calls for a run folder holding one,
+    once ``register()`` has run, so a 2D run and its 3D trace saved in one
+    folder load into the same context.
+
+    Args:
+        path: The ``nsq_events.sqlite`` file.
+        context_name: The core's context to put it in.
+    """
+    set_nsq_context(None, db=path, context_name=context_name)
+
+
+def set_comparison_context(comparison: Any, *, context_name: Optional[str] = None) -> bool:
     """Register a ``compare.compare_2d_3d`` result for ``compare_2d_3d_summary``.
+
+    Args:
+        comparison: The result.
+        context_name: As for ``set_nsq_context``.
 
     Returns:
         True.
     """
-    set_extension_context(COMPARE_KEY, {"comparison": comparison})
+    set_extension_context(COMPARE_KEY, {"comparison": comparison}, **_in(context_name))
     return True
+
+
+def _in(context_name: Optional[str]) -> Dict[str, Any]:
+    # the keyword only when given: a core without named contexts is still served
+    return {} if context_name is None else {"context_name": context_name}
 
 
 def _context() -> Dict[str, Any]:
@@ -215,6 +246,9 @@ def describe_nsq_scene() -> Dict[str, Any]:
     except RuntimeError as e:
         return _error(str(e))
     scene, profiles, db = ctx["scene"], ctx["profiles"], ctx["db"]
+    rows, rays = db.execute("SELECT COUNT(*), COUNT(DISTINCT ray_id) FROM nsq_events").fetchone()
+    if scene is None:
+        return _ok(_describe_from_log(db, rows, rays))
     components = []
     for name, comp in _components(scene).items():
         profile = profiles.get(name)
@@ -229,9 +263,30 @@ def describe_nsq_scene() -> Dict[str, Any]:
                for i, (n, src) in enumerate(_named(scene.source_registry).items())]
     detectors = [{"name": n, "type": type(det).__name__, "logged_as": ""}
                  for n, det in _named(scene.detector_registry).items()]
-    rows, rays = db.execute("SELECT COUNT(*), COUNT(DISTINCT ray_id) FROM nsq_events").fetchone()
     return _ok({"components": components, "sources": sources, "detectors": detectors,
                 "event_log": {"events": rows, "rays": rays}})
+
+
+def _describe_from_log(db: sqlite3.Connection, rows: int, rays: int) -> Dict[str, Any]:
+    """describe_nsq_scene for a log loaded without its scene: what the log names."""
+    hit = [r[0] for r in db.execute("SELECT DISTINCT component_name FROM nsq_events "
+                                    "WHERE event_type = 'hit' AND component_name != '' ORDER BY 1")]
+    faces: "OrderedDict[str, List[Dict[str, Any]]]" = OrderedDict()
+    for face in hit:
+        solid, _, label = face.partition(".")
+        faces.setdefault(solid, []).append({"name": face, "label": label, "type": None, "surface_kind": None,
+                                            "role": None, "mechanism": None})
+    births = [r[0] for r in db.execute("SELECT DISTINCT component_name FROM nsq_events "
+                                       "WHERE event_type = 'birth' ORDER BY 1")]
+    detector_hits = db.execute("SELECT COUNT(*) FROM nsq_events WHERE event_type = 'hit' "
+                               "AND component_name = ''").fetchone()[0]
+    return {"components": [{"name": n, "type": None, "symmetry": None, "body": None, "faces": f}
+                           for n, f in faces.items()],
+            "sources": [{"name": b, "type": None, "logged_as": b} for b in births],
+            "detectors": [{"name": None, "type": None, "logged_as": ""}] if detector_hits else [],
+            "event_log": {"events": rows, "rays": rays},
+            "note": ("loaded from a saved event log without its scene: the faces and sources the log "
+                     "names; roles, mechanisms, surface kinds and the detector's name are not in it")}
 
 
 def describe_nsq_schema() -> Dict[str, Any]:
@@ -352,7 +407,7 @@ def nsq_path_spectrum(top_n: int = 10) -> Dict[str, Any]:
         return _error(str(e))
     if not isinstance(top_n, int) or top_n < 1:
         return _error(f"top_n must be a positive integer, got {top_n!r}")
-    paths = path_spectrum(ctx["db"], _detector_label(ctx["scene"]))
+    paths = path_spectrum(ctx["db"], _detector_label(ctx["scene"]) if ctx["scene"] is not None else "detector")
     rest = paths[top_n:]
     others = {"paths": len(rest), "rays": sum(p["rays"] for p in rest),
               "flux_emitted": sum(p["flux_emitted"] for p in rest), "share": sum(p["share"] for p in rest)}
@@ -418,14 +473,27 @@ TOOLS = [
 
 def register() -> bool:
     """
-    Add the 3D tools to the core's tool lists, once. Call before the MCP server starts.
+    Add the 3D tools to the core's tool lists, once, and the two comparison
+    flows to the flows that can be started by name, for the generic flow
+    tools: ``compare_2d_3d`` (2D against 3D, ray by ray) and
+    ``compare_slice_3d`` (a rayfile's 2D slice against its records in 3D);
+    and lets the core's ``load_run_context`` load a run folder's
+    ``nsq_events.sqlite`` (``load_nsq_context``). Call before the MCP server
+    starts.
 
     Returns:
-        True if they were added now, False if they already were.
+        True if the tools were added now, False if they already were.
 
     Raises:
         RuntimeError: If the MCP server is already running (``register_tool``).
     """
+    from ray_tracing_shapely.analysis.agentic_tools import register_run_file_loader  # noqa: PLC0415
+    from ray_tracing_shapely.flows.kinds import register_flow_kind  # noqa: PLC0415
+
+    register_run_file_loader("nsq_events.sqlite", load_nsq_context)
+
+    register_flow_kind("compare_2d_3d", "ray_tracing_shapely_optiland.comparison_flow:Compare2D3DFlow")
+    register_flow_kind("compare_slice_3d", "ray_tracing_shapely_optiland.slice_comparison_flow:SliceCompareFlow")
     present = {t["name"] for t in get_agentic_tools()}
     if all(fn.__name__ in present for fn, _, _ in TOOLS):
         return False

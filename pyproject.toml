@@ -34,9 +34,12 @@ dependencies = [
     # declared by whoever needs it. Declared bare, `pip install
     # ray-tracing-shapely-optiland` succeeded and then raised
     # ModuleNotFoundError: No module named 'pint' on the first import.
-    # Measured: radiometry alone is sufficient; eye-safety and agentic are not
+    # Measured: radiometry and flows suffice; eye-safety and agentic are not
     # reached by anything this distribution imports.
-    "ray-tracing-shapely[radiometry]>=0.2.0",
+    # [flows]: the comparison flow (comparison_flow.py) runs on the core's
+    # flow machine, which needs transitions (small, pure Python). Found by
+    # declared_deps_check when the flow was added.
+    "ray-tracing-shapely[radiometry,flows]>=0.2.0",
     "optiland",
 ]
 

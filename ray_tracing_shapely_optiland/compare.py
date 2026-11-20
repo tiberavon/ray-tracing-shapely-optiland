@@ -191,6 +191,41 @@ class MainPath2D:
     point: np.ndarray            # start of the last segment, (a, b)
     direction: np.ndarray        # its unit direction, (a, b)
 
+    def to_dict(self) -> Dict[str, Any]:
+        """As JSON, for a job's result."""
+        return {"faces": list(self.faces), "end": self.end, "point": [float(x) for x in self.point],
+                "direction": [float(x) for x in self.direction]}
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> "MainPath2D":
+        return cls(tuple(d["faces"]), d["end"], np.asarray(d["point"], dtype=float),
+                   np.asarray(d["direction"], dtype=float))
+
+
+@dataclass(frozen=True)
+class PencilRay3D:
+    """What the comparison keeps of one 3D ray: its faces, its end, and its
+    last event's point and direction, in the world."""
+
+    faces: Tuple[str, ...]
+    end: str
+    point: np.ndarray
+    direction: np.ndarray
+
+    @classmethod
+    def of(cls, rec: Any) -> "PencilRay3D":
+        return cls(tuple(rec.faces), rec.end, np.asarray(rec.points[-1], dtype=float),
+                   np.asarray(rec.directions[-1], dtype=float))
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"faces": list(self.faces), "end": self.end, "point": [float(x) for x in self.point],
+                "direction": [float(x) for x in self.direction]}
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> "PencilRay3D":
+        return cls(tuple(d["faces"]), d["end"], np.asarray(d["point"], dtype=float),
+                   np.asarray(d["direction"], dtype=float))
+
 
 def trace_2d_main_path(optics_2d: Optics2D, ray: RaySpec, *, max_rays: int = 10_000,
                        components: Mapping[str, Any]) -> MainPath2D:
@@ -311,21 +346,32 @@ def compare_2d_3d(
             profile has more than one face.
         RuntimeError: If a pencil received no 3D ray.
     """
+    by_name = {c.name: c for c in components}
+    specs = [_ray(r) for r in rays]
+    main = [trace_2d_main_path(optics_2d, (p, a), max_rays=max_rays_2d, components=by_name) for p, a in specs]
+    pencils = trace_pencils_3d(components, specs, rays_per_pencil=rays_per_pencil, max_depth=max_depth,
+                               wavelength_um=wavelength_um, seed=seed, source_medium=source_medium)
+    return compare_paths(specs, main, pencils, plane=plane, min_share=min_share)
+
+
+def trace_pencils_3d(components: Sequence[Any], rays: Sequence[RaySpec], *, rays_per_pencil: int = 8,
+                     max_depth: int = 30, wavelength_um: float = 0.55, seed: int = 1,
+                     source_medium: Any = None, progress: Optional[Callable[[int, int], None]] = None,
+                     backend: str = "numpy") -> List[List[PencilRay3D]]:
+    """Each ray as a 3D pencil, in one trace: per ray, its 3D rays (`compare_2d_3d`'s 3D half).
+
+    ``backend`` is Optiland's tracer: ``"numpy"`` (the default) or ``"torch"``, whose arrays
+    the components must have been built with (`optiland.backend.set_backend`).
+
+    Raises:
+        RuntimeError: If a pencil received no 3D ray.
+    """
     from optiland.coordinate_system import CoordinateSystem  # noqa: PLC0415
     from optiland.nonsequential import IrradianceDetectorConfig, NSQScene  # noqa: PLC0415
     from optiland.nonsequential.backends.numpy_backend import NumpyBackend  # noqa: PLC0415
+    from optiland.nonsequential.backends.torch_backend import TorchBackend  # noqa: PLC0415
 
-    by_name = {c.name: c for c in components}
     specs = [_ray(r) for r in rays]
-
-    if plane is not None:
-        phi = math.radians(float(plane["normal_deg"]))
-        plane_2d = (np.asarray(plane["point"], dtype=float), np.array([math.cos(phi), math.sin(phi)]))
-        plane_3d = (scene_to_world([*plane_2d[0], 0.0]), scene_to_world([*plane_2d[1], 0.0]))
-        plane = {"point": [float(x) for x in plane_2d[0]], "normal_deg": float(plane["normal_deg"])}
-
-    main = [trace_2d_main_path(optics_2d, (p, a), max_rays=max_rays_2d, components=by_name) for p, a in specs]
-
     scene = NSQScene()
     names = [f"__ray_{k}" for k in range(len(specs))]
     for name, (p, a) in zip(names, specs):
@@ -339,31 +385,51 @@ def compare_2d_3d(
         scene.component_registry.add(c.name, c)
     scene.add_detector("__parked", CoordinateSystem(y=_PARKED_DETECTOR),
                        IrradianceDetectorConfig(width=1e-6, height=1e-6, num_pixels_x=1, num_pixels_y=1))
+    if progress is not None:
+        progress(0, 1)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         result = scene.trace(num_rays=rays_per_pencil * len(specs), seed=seed, max_depth=max_depth,
-                             backend=NumpyBackend(seed=seed), record_paths=True)
+                             backend=(TorchBackend if backend == "torch" else NumpyBackend)(seed=seed),
+                             record_paths=True)
     by_source = defaultdict(list)
     for rec in split_rays(result.ray_paths["events"]):
-        by_source[rec.source].append(rec)
+        by_source[rec.source].append(PencilRay3D.of(rec))
+    out = []
+    for k, name in enumerate(names):
+        if not by_source.get(name):
+            raise RuntimeError(f"ray {k} received no 3D ray: raise rays_per_pencil")
+        out.append(by_source[name])
+    if progress is not None:
+        progress(1, 1)
+    return out
+
+
+def compare_paths(rays: Sequence[RaySpec], main: Sequence[MainPath2D], pencils: Sequence[Sequence[PencilRay3D]],
+                  *, plane: Optional[Mapping[str, Any]] = None, min_share: float = 0.0) -> Comparison:
+    """The per-ray table from each ray's 2D main path and its 3D rays (`compare_2d_3d`'s last step)."""
+    specs = [_ray(r) for r in rays]
+    plane_3d = None
+    if plane is not None:
+        phi = math.radians(float(plane["normal_deg"]))
+        plane_2d = (np.asarray(plane["point"], dtype=float), np.array([math.cos(phi), math.sin(phi)]))
+        plane_3d = (scene_to_world([*plane_2d[0], 0.0]), scene_to_world([*plane_2d[1], 0.0]))
+        plane = {"point": [float(x) for x in plane_2d[0]], "normal_deg": float(plane["normal_deg"])}
 
     table = []
-    for k, ((p, a), m, name) in enumerate(zip(specs, main, names)):
-        recs = by_source.get(name, [])
-        if not recs:
-            raise RuntimeError(f"ray {k} received no 3D ray: raise rays_per_pencil")
+    for k, ((p, a), m, recs) in enumerate(zip(specs, main, pencils)):
         key_2d = (m.faces, m.end)
         counts = Counter((r.faces, r.end) for r in recs)
         (faces_3d, end_3d), _ = counts.most_common(1)[0]
         on_path = [r for r in recs if (r.faces, r.end) == key_2d]
         d2 = scene_to_world([*m.direction, 0.0])
         p2 = scene_to_world([*m.point, 0.0])
-        if plane is not None:
+        if plane_3d is not None:
             p2 = _on_plane(p2, d2, *plane_3d)
         dd = dp = d3 = p3 = None
         if on_path:
-            dirs = np.array([r.directions[-1] for r in on_path])
-            pts = np.array([r.points[-1] if plane is None else _on_plane(r.points[-1], r.directions[-1], *plane_3d)
+            dirs = np.array([r.direction for r in on_path])
+            pts = np.array([r.point if plane_3d is None else _on_plane(r.point, r.direction, *plane_3d)
                             for r in on_path])
             dd = float(np.abs(dirs - d2).max())
             dp = float(np.linalg.norm(pts - p2, axis=1).max())
@@ -382,6 +448,69 @@ def compare_2d_3d(
 
 
 # --- a rayfile slice against the rayfile's own rays ------------------------------
+
+
+def slice_main_paths_2d(optics_2d: Optics2D, components: Mapping[str, Any], slc: Any, *, every: int = 1,
+                        max_rays_2d: int = 10_000) -> Tuple[np.ndarray, List[MainPath2D]]:
+    """The 2D half of `compare_slice_3d`: every ``every``-th kept ray of the slice, its main path.
+
+    ``components`` names the 2D hits, as for `trace_2d_main_path`. Returns the picked positions in
+    the slice and the paths."""
+    pick = np.arange(0, len(slc.indices), max(1, int(every)))
+    main = [trace_2d_main_path(optics_2d, (slc.points[k], math.degrees(math.atan2(*slc.directions[k][::-1]))),
+                               max_rays=max_rays_2d, components=components) for k in pick]
+    return pick, main
+
+
+def trace_slice_records_3d(components: Sequence[Any], rayfile: Any, records: Sequence[int],
+                           position: Sequence[float], direction_deg: float, *, roll_deg: float = 0.0,
+                           repeats: int = 4, max_depth: int = 30, seed: int = 1) -> List[List[PencilRay3D]]:
+    """The 3D half of `compare_slice_3d`: the records themselves, unturned, ``repeats`` Monte Carlo rays
+    each, in one trace. Per record, in the order given, its 3D rays."""
+    from optiland.coordinate_system import CoordinateSystem  # noqa: PLC0415
+    from optiland.nonsequential import IrradianceDetectorConfig, NSQScene  # noqa: PLC0415
+    from optiland.nonsequential.backends.numpy_backend import NumpyBackend  # noqa: PLC0415
+
+    from .sources import add_rayfile_source_3d  # noqa: PLC0415
+
+    records = np.asarray(records)
+    scene = NSQScene()
+    add_rayfile_source_3d(scene, "__rayfile", rayfile.subset(records), position, direction_deg, roll_deg)
+    for c in components:
+        scene.component_registry.add(c.name, c)
+    scene.add_detector("__parked", CoordinateSystem(y=_PARKED_DETECTOR),
+                       IrradianceDetectorConfig(width=1e-6, height=1e-6, num_pixels_x=1, num_pixels_y=1))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = scene.trace(num_rays=repeats * len(records), seed=seed, max_depth=max_depth,
+                             backend=NumpyBackend(seed=seed), record_paths=True)
+    by_record: Dict[int, List[PencilRay3D]] = defaultdict(list)
+    for rec in split_rays(result.ray_paths["events"]):
+        by_record[rec.ray_id % len(records)].append(PencilRay3D.of(rec))
+    return [by_record.get(j, []) for j in range(len(records))]
+
+
+def compare_slice_paths(slc: Any, pick: Sequence[int], main: Sequence[MainPath2D],
+                        records_3d: Sequence[Sequence[PencilRay3D]], direction_deg: float) -> List[Dict[str, Any]]:
+    """`compare_slice_3d`'s table, from its two halves: per picked ray, its 2D and 3D exit angles."""
+    t = math.radians(direction_deg)
+    axis_3d = scene_to_world([math.cos(t), math.sin(t), 0.0])
+
+    def from_axis(d) -> float:
+        return math.degrees(math.acos(max(-1.0, min(1.0, float(np.dot(d, axis_3d) / np.linalg.norm(d))))))
+
+    records = slc.indices[np.asarray(pick, dtype=int)]
+    out = []
+    for j, (m, recs) in enumerate(zip(main, records_3d)):
+        on_path = [r for r in recs if (r.faces, r.end) == (m.faces, m.end)]
+        out.append({
+            "record": int(records[j]), "offset_mm": float(slc.offsets_mm[records[j]]),
+            "path_2d": list(m.faces), "end_2d": m.end,
+            "angle_2d_deg": from_axis(scene_to_world([*m.direction, 0.0])),
+            "angle_3d_deg": (float(np.mean([from_axis(r.direction) for r in on_path])) if on_path else None),
+            "share_on_2d_path": len(on_path) / len(recs) if recs else 0.0,
+        })
+    return out
 
 
 def compare_slice_3d(
@@ -407,6 +536,9 @@ def compare_slice_3d(
     about the axis changes that angle, so it differs only through h. A
     meridional record (h = 0) must agree to the tracing precision.
 
+    The three steps, as plain data: `slice_main_paths_2d`,
+    `trace_slice_records_3d`, `compare_slice_paths`.
+
     Args:
         optics_2d, components, max_depth, seed, max_rays_2d: as ``compare_2d_3d``.
         rayfile, slc: The rayfile and its slice, taken with the same
@@ -420,51 +552,13 @@ def compare_slice_3d(
         that met the same faces and ended the same way, or None),
         ``share_on_2d_path``.
     """
-    from optiland.coordinate_system import CoordinateSystem  # noqa: PLC0415
-    from optiland.nonsequential import IrradianceDetectorConfig, NSQScene  # noqa: PLC0415
-    from optiland.nonsequential.backends.numpy_backend import NumpyBackend  # noqa: PLC0415
-
-    from .sources import add_rayfile_source_3d  # noqa: PLC0415
-
-    by_name = {c.name: c for c in components}
-    pick = np.arange(0, len(slc.indices), max(1, int(every)))
-    records = slc.indices[pick]
-    t = math.radians(direction_deg)
-    axis_2d = np.array([math.cos(t), math.sin(t)])
-    axis_3d = scene_to_world([*axis_2d, 0.0])
-
-    def from_axis(d) -> float:
-        return math.degrees(math.acos(max(-1.0, min(1.0, float(np.dot(d, axis_3d) / np.linalg.norm(d))))))
-
-    main = [trace_2d_main_path(optics_2d, (slc.points[k], math.degrees(math.atan2(*slc.directions[k][::-1]))),
-                               max_rays=max_rays_2d, components=by_name) for k in pick]
-
-    scene = NSQScene()
-    add_rayfile_source_3d(scene, "__rayfile", rayfile.subset(records), position, direction_deg, roll_deg)
-    for c in components:
-        scene.component_registry.add(c.name, c)
-    scene.add_detector("__parked", CoordinateSystem(y=_PARKED_DETECTOR),
-                       IrradianceDetectorConfig(width=1e-6, height=1e-6, num_pixels_x=1, num_pixels_y=1))
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        result = scene.trace(num_rays=repeats * len(records), seed=seed, max_depth=max_depth,
-                             backend=NumpyBackend(seed=seed), record_paths=True)
-    by_record = defaultdict(list)
-    for rec in split_rays(result.ray_paths["events"]):
-        by_record[rec.ray_id % len(records)].append(rec)
-
-    out = []
-    for j, (k, m) in enumerate(zip(pick, main)):
-        recs = by_record.get(j, [])
-        on_path = [r for r in recs if (r.faces, r.end) == (m.faces, m.end)]
-        out.append({
-            "record": int(records[j]), "offset_mm": float(slc.offsets_mm[records[j]]),
-            "path_2d": list(m.faces), "end_2d": m.end,
-            "angle_2d_deg": from_axis(scene_to_world([*m.direction, 0.0])),
-            "angle_3d_deg": (float(np.mean([from_axis(r.directions[-1]) for r in on_path])) if on_path else None),
-            "share_on_2d_path": len(on_path) / len(recs) if recs else 0.0,
-        })
-    return out
+    pick, main = slice_main_paths_2d(optics_2d, {c.name: c for c in components}, slc, every=every,
+                                     max_rays_2d=max_rays_2d)
+    records_3d = trace_slice_records_3d(components, rayfile, slc.indices[pick], position, direction_deg,
+                                        roll_deg=roll_deg, repeats=repeats, max_depth=max_depth, seed=seed)
+    return compare_slice_paths(slc, pick, main, records_3d, direction_deg)
 
 
-__all__ = ["Comparison", "MainPath2D", "compare_2d_3d", "compare_slice_3d", "span_at", "trace_2d_main_path"]
+__all__ = ["Comparison", "MainPath2D", "PencilRay3D", "compare_2d_3d", "compare_paths", "compare_slice_3d",
+           "compare_slice_paths", "slice_main_paths_2d", "span_at", "trace_2d_main_path", "trace_pencils_3d",
+           "trace_slice_records_3d"]
