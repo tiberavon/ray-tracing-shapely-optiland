@@ -10,6 +10,7 @@ authors:
     given-names: Michele
     orcid: "https://orcid.org/0000-0002-5851-6937"
   - name: ray-tracing-shapely authors and contributors
+doi: "10.5281/zenodo.24418339"
 repository-code: "https://github.com/tiberavon/ray-tracing-shapely-optiland"
 abstract: >-
   3D verification of ray-tracing-shapely nonimaging-optics designs through

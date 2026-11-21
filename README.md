@@ -1,5 +1,7 @@
 # ray-tracing-shapely-optiland
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24418339.svg)](https://doi.org/10.5281/zenodo.24418339)
+
 3D verification of [`ray_tracing_shapely`](https://github.com/tiberavon/ray-tracing-shapely)
 designs with [Optiland](https://github.com/optiland/optiland)'s non-sequential ray tracer.
 A 2D design is handed over as a `profile.json`: its outline, the role and mechanism of
@@ -62,3 +64,19 @@ pip install -e ".[dev]"
 # or, for the inline-notebook viewer:
 pip install -e ".[notebook]"
 ```
+
+## Citing
+
+If you use this software, please cite it, and the ray-tracing-shapely project whose designs
+it verifies. `CITATION.cff` carries the metadata for both; GitHub formats it from the *Cite
+this repository* link.
+
+This project: [doi:10.5281/zenodo.24418339](https://doi.org/10.5281/zenodo.24418339). That is
+the *concept* DOI, which always resolves to the latest release. Each release also has its own
+DOI, to cite when a result must be pinned to the exact version it came from.
+
+ray-tracing-shapely: [doi:10.5281/zenodo.23991020](https://doi.org/10.5281/zenodo.23991020).
+
+## Licence
+
+Apache-2.0. See `NOTICE.txt`.
