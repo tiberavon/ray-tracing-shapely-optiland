@@ -1,0 +1,27 @@
+{
+  "upload_type": "software",
+  "title": "ray-tracing-shapely-optiland: 3D verification of ray-tracing-shapely designs in Optiland",
+  "license": "Apache-2.0",
+  "creators": [
+    {
+      "name": "Benetti, Michele",
+      "orcid": "0000-0002-5851-6937"
+    }
+  ],
+  "description": "3D verification of ray-tracing-shapely nonimaging-optics designs through Optiland's non-sequential ray tracer: a 2D design's profile revolved or extruded into a 3D scene, traced, and compared with the 2D result, with notebook-embedded visualisation and ray and run persistence.",
+  "keywords": [
+    "ray-tracing",
+    "optics",
+    "optiland",
+    "non-sequential",
+    "simulation"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "10.5281/zenodo.23991020",
+      "relation": "requires",
+      "resource_type": "software",
+      "scheme": "doi"
+    }
+  ]
+}
