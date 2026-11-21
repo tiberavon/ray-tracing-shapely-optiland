@@ -20,4 +20,4 @@ import ray_tracing_shapely_optiland
 
 
 def test_import():
-    assert ray_tracing_shapely_optiland.__version__ == "0.0.0"
+    assert ray_tracing_shapely_optiland.__version__ == "0.1.0"

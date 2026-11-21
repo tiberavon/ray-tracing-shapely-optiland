@@ -43,4 +43,4 @@ for the one remaining open piece (a reverse, 3D-to-2D import entry point).
 ===============================================================================
 """
 
-__version__ = "0.0.0"
+__version__ = "0.1.0"

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ray-tracing-shapely-optiland"
-version = "0.0.0"
+version = "0.1.0"
 description = "3D verification of ray_tracing_shapely nonimaging-optics designs via Optiland's non-sequential ray tracer -- scene assembly, notebook-embedded visualization, and ray/run persistence"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -16,7 +16,7 @@ authors = [
 ]
 keywords = ["ray-tracing", "optics", "optiland", "non-sequential", "simulation"]
 classifiers = [
-    "Development Status :: 1 - Planning",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
@@ -39,8 +39,11 @@ dependencies = [
     # [flows]: the comparison flow (comparison_flow.py) runs on the core's
     # flow machine, which needs transitions (small, pure Python). Found by
     # declared_deps_check when the flow was added.
-    "ray-tracing-shapely[radiometry,flows]>=0.2.0",
-    "optiland",
+    "ray-tracing-shapely[radiometry,flows]>=0.3.0",
+    # 0.6.3 is the oldest release the tests pass on. Later Optiland changed the
+    # plane intersection's signature and the self-intersection threshold;
+    # geometry.PolygonPlaneGeometry follows whichever it finds.
+    "optiland>=0.6.3",
 ]
 
 [project.optional-dependencies]

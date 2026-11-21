@@ -49,16 +49,22 @@ jobs:
 
       - name: Install
         # The [notebook] extra is not optional here. Without trame, trame-vtk
-        # and trame-vuetify the two VTK test files skip, and a green run would
-        # be hiding 11 of the 24 tests.
+        # and trame-vuetify the VTK test files skip, and a green run would be
+        # hiding every test that builds or renders a 3D view.
         run: pip install -e ".[dev,notebook]"
 
+      - name: A display for VTK
+        # The snapshot tests render (window.Render()). Off-screen rendering
+        # still needs an OpenGL context, and the runner has no X server and no
+        # GPU: VTK then crashes the interpreter with a segmentation fault, which
+        # pytest cannot report as a failure. A virtual X server with Mesa's
+        # software OpenGL gives it one.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb libgl1 libglx-mesa0 libegl1 libxrender1
+
       - name: Test
-        # No display, no GPU, and none needed: build_vtk_renderer calls
-        # OffScreenRenderingOn(), and VTK falls back to software rendering.
-        # It is noisy about that -- "bad X server connection", libEGL warnings
-        # about /dev/dri -- and then renders correctly. Measured: 24 passed.
-        run: pytest -q
+        run: xvfb-run -a pytest -q
 
   lint:
     runs-on: ubuntu-latest

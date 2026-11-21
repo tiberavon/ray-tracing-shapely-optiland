@@ -38,18 +38,22 @@ and comes back.
   registered into `ray_tracing_shapely`'s tool lists, and the two comparison flows,
   registered among the flows that can be started by name.
 
-The components' own pages say what each part guarantees:
+The components' own pages, in the `ray_tracing_shapely` repository, say what each part
+guarantees:
 
-- `dev_doc/architecture/components/optiland_scene_bridge.md`
-- `dev_doc/architecture/components/optiland_nsq_run_registry.md`
-- `dev_doc/architecture/components/optiland_nsq_viewer.md`
+- [`optiland_scene_bridge`](https://github.com/tiberavon/ray-tracing-shapely/blob/master/dev_doc/architecture/components/optiland_scene_bridge.md)
+- [`optiland_nsq_run_registry`](https://github.com/tiberavon/ray-tracing-shapely/blob/master/dev_doc/architecture/components/optiland_nsq_run_registry.md)
+- [`optiland_nsq_viewer`](https://github.com/tiberavon/ray-tracing-shapely/blob/master/dev_doc/architecture/components/optiland_nsq_viewer.md)
 
-Distinct from the sibling `optiland-sms` package, which is to ship only the
-entry-point-discovered SMS geometry plugin Optiland's own plugin loader finds
-automatically. This package is found through `ray_tracing_shapely`'s own docs, not
-Optiland's.
+Distinct from the sibling [`optiland-sms`](https://github.com/tiberavon/optiland-sms) package,
+an Optiland plugin that makes a profile's spline span a surface of Optiland's sequential
+engine, which Optiland finds by entry point. This package works in the non-sequential
+engine, and is found through `ray_tracing_shapely`'s own docs, not Optiland's.
 
 ## Install
+
+Requires Python 3.11 or later, `ray_tracing_shapely` 0.3.0 or later and Optiland 0.6.3 or
+later.
 
 Not yet on PyPI. From a checkout:
 

@@ -56,6 +56,7 @@ rectangle, not the polygon. ExtrudedPolygonSolid does neither.
 
 from __future__ import annotations
 
+import inspect
 import math
 from typing import Optional, Sequence, Tuple
 
@@ -64,6 +65,12 @@ import numpy as np
 import optiland.backend as be
 from optiland.nonsequential.components.geometry.analytic.conic import ConicGeometry
 from optiland.nonsequential.components.geometry.analytic.plane import FinitePlaneGeometry
+
+# Whether this Optiland's plane intersection takes the self-intersection
+# threshold. Releases up to 0.6.3 do not: the engine calls
+# ray_intersect(origins, directions) and applies its own fixed guard after.
+# Later ones pass a threshold, which a subclass must hand on.
+_PLANE_TAKES_EPS = "eps" in inspect.signature(FinitePlaneGeometry.ray_intersect).parameters
 
 
 class PolygonPlaneGeometry(FinitePlaneGeometry):
@@ -156,7 +163,10 @@ class PolygonPlaneGeometry(FinitePlaneGeometry):
         Returns:
             (t, normals, hit_mask, n_geom), as FinitePlaneGeometry returns them.
         """
-        t, normals, hit_mask, n_geom = super().ray_intersect(origins, directions, eps)
+        if _PLANE_TAKES_EPS:
+            t, normals, hit_mask, n_geom = super().ray_intersect(origins, directions, eps)
+        else:
+            t, normals, hit_mask, n_geom = super().ray_intersect(origins, directions)
         safe_t = be.where(hit_mask, t, be.zeros_like(t))
         hx = origins[:, 0] + safe_t * directions[:, 0]
         hy = origins[:, 1] + safe_t * directions[:, 1]

@@ -134,6 +134,19 @@ def _detectors(scene, placement_axis_point, along):
                            IrradianceDetectorConfig(width=4000, height=4000, num_pixels_x=2, num_pixels_y=2))
 
 
+# KW-OPTILAND-05 is a defect of the dtype-aware self-intersection threshold,
+# 25 ulps of the hit point's own coordinates (optiland.nonsequential._tol). An
+# Optiland without it (releases up to 0.6.3, a fixed 1e-9 guard) does not have
+# the defect, so its witnesses have nothing to find there.
+try:
+    import optiland.nonsequential._tol  # noqa: F401
+    _ULP_THRESHOLD = True
+except ImportError:
+    _ULP_THRESHOLD = False
+needs_ulp_threshold = pytest.mark.skipif(
+    not _ULP_THRESHOLD, reason="this Optiland has no ulp-based self-intersection threshold, "
+    "so not the defect this test witnesses")
+
 HEIGHTS = (-13.0, -7.5, -1.0, 2.5, 9.0, 14.0)
 CONE_HEIGHTS = (-11.0, -7.0, -4.0, 5.0, 8.5, 11.5)
 
@@ -277,6 +290,7 @@ def test_what_a_sheet_refuses():
         RevolvedProfileSheet("X", tilted, 1.0)
 
 
+@needs_ulp_threshold
 def test_witness_optilands_conic_mirror_re_hits_itself_near_the_world_origin():
     """KW-OPTILAND-05, on Optiland alone. A hyperboloid mirror with its vertex at
     the world origin: rays arriving from 50 mm away carry ~1e-14 of rounding,
@@ -300,6 +314,7 @@ def test_witness_optilands_conic_mirror_re_hits_itself_near_the_world_origin():
     assert (hits > 1).sum() > 100
 
 
+@needs_ulp_threshold
 def test_witness_a_long_path_lets_a_ray_re_hit_optilands_frustum_far_from_the_origin():
     """KW-OPTILAND-05's second form, on Optiland alone: a cone mirror (a
     CylindricalFrustumGeometry) 300 mm from the origin, lit by a beam 88 deg off
