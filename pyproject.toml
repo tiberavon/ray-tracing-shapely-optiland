@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ray-tracing-shapely-optiland"
-version = "0.1.0"
+version = "0.1.1"
 description = "3D verification of ray_tracing_shapely nonimaging-optics designs via Optiland's non-sequential ray tracer -- scene assembly, notebook-embedded visualization, and ray/run persistence"
 readme = "README.md"
 requires-python = ">=3.11"
