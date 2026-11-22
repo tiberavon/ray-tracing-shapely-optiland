@@ -18,7 +18,7 @@ Revolved mirrors (body "sheet") through the bridge.
 
 Three oracles, as for the lenses:
 
-- the 2D trace of the same mirrors (ConicMirror, ArcMirror, flat Mirror):
+- the 2D trace of the same mirrors (ConicMirror, CircularArcMirror, flat Mirror):
   every meridional ray must end in 3D where it ends in 2D, after the same
   number of reflections, for a paraboloid, an ellipsoid, a hyperboloid, a
   sphere and a cone, on an axis tilted in the 2D scene;
@@ -52,7 +52,11 @@ from ray_tracing_shapely.core.scene import Scene  # noqa: E402
 from ray_tracing_shapely.core.scene_objs.light_source.single_ray import SingleRay  # noqa: E402
 from ray_tracing_shapely.core.scene_objs.mirror.mirror import Mirror  # noqa: E402
 from ray_tracing_shapely.core.simulator import Simulator  # noqa: E402
-from ray_tracing_shapely.optical_elements.mirrors import ArcMirror, ConicMirror  # noqa: E402
+from ray_tracing_shapely.optical_elements.mirrors import ConicMirror  # noqa: E402
+try:  # noqa: E402 (below the importorskip)
+    from ray_tracing_shapely.optical_elements.mirrors import CircularArcMirror
+except ImportError:  # core 0.3.1 and earlier: the circle mirror was named ArcMirror
+    from ray_tracing_shapely.optical_elements.mirrors import ArcMirror as CircularArcMirror
 from ray_tracing_shapely.optical_elements.prisms.profile_export import export_sheet_profile  # noqa: E402
 
 #: The revolve axis in the 2D scene: through VERTEX, along U (tilted 10 deg). Well away
@@ -83,7 +87,7 @@ def _mirrors(case, scene):
     if case == "hyperboloid":
         return [ConicMirror(scene, VERTEX, BACK, 40.0, -3.0, semi_diameter=15.0, name="M")]
     if case == "sphere":
-        return [ArcMirror(scene, VERTEX, BACK, 40.0, semi_diameter=15.0, name="M")]
+        return [CircularArcMirror(scene, VERTEX, BACK, 40.0, semi_diameter=15.0, name="M")]
     if case == "cone":   # narrow end (radius 3) at the vertex, opening to radius 12 towards the light
         return [_flat(scene, _at(3.0, 0.0), _at(12.0, -30.0), "M"),
                 _flat(scene, _at(-3.0, 0.0), _at(-12.0, -30.0), "M_twin")]

@@ -62,7 +62,11 @@ from ray_tracing_shapely.core.scene import Scene
 from ray_tracing_shapely.core.scene_objs.mirror.mirror import Mirror
 from ray_tracing_shapely.optical_elements.lenses import SingletLens
 from ray_tracing_shapely.optical_elements.lenses.tir_collimator import TIRCollimator
-from ray_tracing_shapely.optical_elements.mirrors import ArcMirror, ConicMirror, mirrors_from_sheet_profile
+from ray_tracing_shapely.optical_elements.mirrors import ConicMirror, mirrors_from_sheet_profile
+try:
+    from ray_tracing_shapely.optical_elements.mirrors import CircularArcMirror
+except ImportError:  # core 0.3.1 and earlier: the circle mirror was named ArcMirror
+    from ray_tracing_shapely.optical_elements.mirrors import ArcMirror as CircularArcMirror
 from ray_tracing_shapely.optical_elements.prisms.base_prism import BasePrism
 from ray_tracing_shapely.optical_elements.prisms.profile_export import export_profile, export_sheet_profile
 from ray_tracing_shapely.optical_elements.roles import Mechanism, Role
@@ -200,7 +204,7 @@ def _reflector(whole):
 
 
 def _sphere_and_flat(scene):
-    return [ArcMirror(scene, (X0 + 40.0, Y0), (1.0, 0.0), -40.0, semi_diameter=20.0, name="M1"),
+    return [CircularArcMirror(scene, (X0 + 40.0, Y0), (1.0, 0.0), -40.0, semi_diameter=20.0, name="M1"),
             _mirror(scene, (X0 - 5.0, Y0 - 3.0), (X0 - 5.0, Y0 + 3.0), "M2")]
 
 
@@ -256,7 +260,7 @@ def test_the_sheet_rebuild_joins_what_the_axis_cut():
              for name, (make, cut, _) in SHEETS.items()}
     assert count == {"cone": 2, "headlamp_reflector": 2, "headlamp_reflector_whole": 4, "sphere_and_flat": 2}
     rebuilt = mirrors_from_sheet_profile(Scene(), _exported(_sphere_and_flat, False))
-    assert isinstance(rebuilt[0], ArcMirror) and rebuilt[0].extent == pytest.approx((-20.0, 20.0))
+    assert isinstance(rebuilt[0], CircularArcMirror) and rebuilt[0].extent == pytest.approx((-20.0, 20.0))
     with pytest.raises(ValueError, match="from_profile"):
         mirrors_from_sheet_profile(Scene(), export_profile(_shafer(0)(Scene()), symmetry={
             "kind": "revolve", "axis": _shafer(0)(Scene()).revolve_axis()}, physical_params={}, numerical_params={}))

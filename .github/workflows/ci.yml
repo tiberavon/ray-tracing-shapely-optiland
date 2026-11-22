@@ -32,26 +32,15 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
 
-      # Until ray-tracing-shapely is on PyPI this cannot resolve from the
-      # index, so core is installed from its own repository. Remove this step
-      # after the first release; the dependency in pyproject.toml will then
-      # resolve on its own.
-      #
-      # The [radiometry] extra has to be repeated here: a git requirement
-      # pins the distribution, and pip will not add extras to an
-      # already-satisfied pin just because a dependent asks for them. Without
-      # it the install succeeds and the first import raises
-      # ModuleNotFoundError: No module named 'pint'.
-      - name: Install core from source (pre-release only)
-        run: |
-          python -m pip install --upgrade pip
-          pip install "ray-tracing-shapely[radiometry] @ git+https://github.com/tiberavon/ray-tracing-shapely@master#subdirectory=src-python/ray_tracing_shapely"
-
       - name: Install
+        # The core comes from PyPI, through the dependency in pyproject.toml,
+        # as it does for a user.
         # The [notebook] extra is not optional here. Without trame, trame-vtk
         # and trame-vuetify the VTK test files skip, and a green run would be
         # hiding every test that builds or renders a 3D view.
-        run: pip install -e ".[dev,notebook]"
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,notebook]"
 
       - name: A display for VTK
         # The snapshot tests render (window.Render()). Off-screen rendering
